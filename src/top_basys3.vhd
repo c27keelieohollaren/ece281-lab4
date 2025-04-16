@@ -12,21 +12,28 @@ entity top_basys3 is
         btnU    :   in std_logic; -- master_reset
         btnL    :   in std_logic; -- clk_reset
         btnR    :   in std_logic; -- fsm_reset
-        
-        -- outputs
-        led :   out std_logic_vector(15 downto 0);
-        -- 7-segment display segments (active-low cathodes)
-        seg :   out std_logic_vector(6 downto 0);
-        -- 7-segment display active-low enables (anodes)
-        an  :   out std_logic_vector(3 downto 0)
+        led     :   out std_logic_vector(15 downto 0);
+        seg     :   out std_logic_vector(6 downto 0);
+        an      :   out std_logic_vector(3 downto 0)
     );
 end top_basys3;
 
 architecture top_basys3_arch of top_basys3 is
 
     -- signal declarations
-    
+    signal w_slow_clk : std_logic;
+    signal w_floor1, w_floor2 : std_logic_vector(3 downto 0);
+    signal w_floor1_digit, w_floor2_digit : std_logic_vector(3 downto 0);
+    signal w_tdm_data : std_logic_vector(3 downto 0);
+    signal w_tdm_sel : std_logic_vector(3 downto 0);
+    signal w_seg_n : std_logic_vector(6 downto 0);
+    signal w_tdm_clk   : std_logic := '0';
+    signal tdm_counter : integer range 0 to 99999 := 0;
   
+    --Constants
+    constant k_clk_div : natural := 25000000;
+    constant k_blank_dis : std_logic_vector(3 downto 0) := x"0";
+    constant k_hex_F : std_logic_vector(3 downto 0) := x"F";
 	-- component declarations
     component sevenseg_decoder is
         port (
@@ -70,7 +77,88 @@ architecture top_basys3_arch of top_basys3 is
 	
 begin
 	-- PORT MAPS ----------------------------------------
-    	
+    	-- TDM clock divider (~1kHz)
+    process(clk)
+    begin
+        if rising_edge(clk) then
+            if tdm_counter = 99999 then
+                tdm_counter <= 0;
+                w_tdm_clk <= not w_tdm_clk;
+            else
+                tdm_counter <= tdm_counter + 1;
+            end if;
+        end if;
+    end process;
+ 
+    -- FSM clock divider (for elevator movement)
+    clk_div: clock_divider
+        generic map (k_DIV => k_CLK_DIV)
+        port map (
+            i_clk => clk,
+            i_reset => btnL,
+            o_clk => w_slow_clk
+        );
+ 
+    -- Elevator FSMs
+    elev1_fsm: elevator_controller_fsm
+        port map (
+            i_clk => w_slow_clk,
+            i_reset => btnR,
+            is_stopped => sw(0),
+            go_up_down => sw(1),
+            o_floor => w_floor1
+        );
+ 
+    elev2_fsm: elevator_controller_fsm
+        port map (
+            i_clk => w_slow_clk,
+            i_reset => btnR,
+            is_stopped => sw(14),
+            go_up_down => sw(15),
+            o_floor => w_floor2
+        );
+    -- Floor digit assignment
+    w_floor1_digit <= w_floor1;
+    w_floor2_digit <= w_floor2;
+ 
+    -- Time-Division Multiplexed display
+    tdm: TDM4
+        generic map (k_WIDTH => 4)
+        port map (
+            i_clk => w_tdm_clk,
+            i_reset => btnU,
+            i_D3 => k_hex_F,
+            i_D2 => w_floor2_digit,
+            i_D1 => k_hex_F,
+            i_D0 => w_floor1_digit,
+            o_data => w_tdm_data,
+            o_sel => w_tdm_sel
+        );
+ 
+    -- Seven segment decoder
+    seg_decoder: sevenseg_decoder
+        port map (
+            i_Hex => w_tdm_data,
+            o_seg_n => w_seg_n
+        );
+ 
+    -- Segment remapping
+    seg(0) <= w_seg_n(0);
+    seg(1) <= w_seg_n(1);
+    seg(2) <= w_seg_n(2);
+    seg(3) <= w_seg_n(3);
+    seg(4) <= w_seg_n(4);
+    seg(5) <= w_seg_n(5);  -- F → G
+    seg(6) <= w_seg_n(6);  -- G → F
+ 
+    -- Display control
+    an <= w_tdm_sel;
+ 
+    -- LED debug indicators
+    led(3 downto 0)   <= w_floor1_digit;
+    led(7 downto 4)   <= w_floor2_digit;
+    led(15)           <= w_slow_clk;
+    led(14 downto 8)  <= (others => '0');
 	
 	-- CONCURRENT STATEMENTS ----------------------------
 	
