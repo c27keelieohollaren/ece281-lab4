@@ -54,7 +54,8 @@ architecture top_basys3_arch of top_basys3 is
 	
 	component TDM4 is
 		generic ( constant k_WIDTH : natural  := 4); -- bits in input and output
-        Port ( i_clk		: in  STD_LOGIC;
+        Port ( 
+           i_clk		: in  STD_LOGIC;
            i_reset		: in  STD_LOGIC; -- asynchronous
            i_D3 		: in  STD_LOGIC_VECTOR (k_WIDTH - 1 downto 0);
 		   i_D2 		: in  STD_LOGIC_VECTOR (k_WIDTH - 1 downto 0);
@@ -78,17 +79,13 @@ architecture top_basys3_arch of top_basys3 is
 begin
 	-- PORT MAPS ----------------------------------------
     	-- TDM clock divider (~1kHz)
-    process(clk)
-    begin
-        if rising_edge(clk) then
-            if tdm_counter = 99999 then
-                tdm_counter <= 0;
-                w_tdm_clk <= not w_tdm_clk;
-            else
-                tdm_counter <= tdm_counter + 1;
-            end if;
-        end if;
-    end process;
+    tdm_clk_div: clock_divider
+        generic map (k_DIV => 100000)
+        port map (
+            i_clk => clk,
+            i_reset => btnL,
+            o_clk => w_slow_clk
+        );
  
     -- FSM clock divider (for elevator movement)
     clk_div: clock_divider
@@ -148,22 +145,21 @@ begin
     seg(2) <= w_seg_n(2);
     seg(3) <= w_seg_n(3);
     seg(4) <= w_seg_n(4);
-    seg(5) <= w_seg_n(5);  -- F → G
-    seg(6) <= w_seg_n(6);  -- G → F
+    seg(5) <= w_seg_n(5);  
+    seg(6) <= w_seg_n(6);  
  
     -- Display control
     an <= w_tdm_sel;
  
-    -- LED debug indicators
-    led(3 downto 0)   <= w_floor1_digit;
-    led(7 downto 4)   <= w_floor2_digit;
-    led(15)           <= w_slow_clk;
-    led(14 downto 8)  <= (others => '0');
+    
 	
 	-- CONCURRENT STATEMENTS ----------------------------
 	
 	-- LED 15 gets the FSM slow clock signal. The rest are grounded.
-	
+	led(3 downto 0)   <= w_floor1_digit;
+    led(7 downto 4)   <= w_floor2_digit;
+    led(15)           <= w_slow_clk;
+    led(14 downto 8)  <= (others => '0');
 	-- leave unused switches UNCONNECTED. Ignore any warnings this causes.
 	
 	-- reset signals
