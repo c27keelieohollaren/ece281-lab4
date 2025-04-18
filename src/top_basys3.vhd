@@ -53,7 +53,7 @@ architecture top_basys3_arch of top_basys3 is
 	end component elevator_controller_fsm;
 	
 	component TDM4 is
-		generic ( constant k_WIDTH : natural  := 4); -- bits in input and output
+		generic ( constant k_WIDTH : natural  := 4); 
         Port ( 
            i_clk		: in  STD_LOGIC;
            i_reset		: in  STD_LOGIC; -- asynchronous
